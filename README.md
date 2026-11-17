@@ -1,47 +1,47 @@
-# Asynchronous C++ Practice
+# Асинхронность и многопоточность в C++
 
-An educational C++20 and Boost.Asio project that models restaurant orders. It explores how timer-based waiting and work on multiple threads can share one event loop.
+Учебный проект на C++20 и Boost.Asio, моделирующий обработку ресторанных заказов. Показывает, как ожидание по таймерам и работа нескольких потоков совмещаются в одном цикле событий.
 
-## The model
+## Модель заказа
 
-An order contains a burger with or without onion:
+Заказ содержит бургер с луком или без него:
 
-| Step | Modelled duration | Implementation |
+| Этап | Заданная длительность | Реализация |
 | --- | --- | --- |
-| Roast the cutlet | 1 second | Asynchronous steady timer |
-| Marinate the onion, when requested | 2 seconds | Asynchronous steady timer |
-| Pack the burger | 0.5 seconds | CPU work simulated by a busy loop |
+| Приготовление котлеты | 1 секунда | Асинхронный монотонный таймер |
+| Маринование лука, если он заказан | 2 секунды | Асинхронный монотонный таймер |
+| Упаковка бургера | 0,5 секунды | Работа процессора, имитируемая активным циклом |
 
-Cutlet and onion preparation can overlap. Packaging starts once the required ingredients are ready. These durations are simulation inputs, not benchmark results.
+Приготовление котлеты и лука может идти одновременно. Упаковка начинается после готовности необходимых ингредиентов. Указанные длительности — параметры модели, а не результаты измерения производительности.
 
-## Concepts demonstrated
+## Что демонстрирует проект
 
-- A shared `boost::asio::io_context` processed by four worker threads.
-- Worker lifetime management with `std::jthread`.
-- Non-blocking waits through `boost::asio::steady_timer::async_wait`.
-- Object lifetime management across callbacks with `shared_from_this()`.
-- A strand and `dispatch()` to serialize insertion into the shared results collection.
-- Timestamped logging with `std::osyncstream`.
+- Общий `boost::asio::io_context`, который обрабатывают четыре рабочих потока.
+- Управление временем жизни потоков через `std::jthread`.
+- Неблокирующее ожидание через `boost::asio::steady_timer::async_wait`.
+- Сохранение времени жизни объекта между обратными вызовами через `shared_from_this()`.
+- Последовательное добавление результатов в общую коллекцию через strand и `dispatch()`.
+- Вывод логов с временными отметками через `std::osyncstream`.
 
-The example submits **16 orders** and checks their final state with assertions.
+Пример создаёт **16 заказов** и проверяет их итоговое состояние с помощью `assert`.
 
-## Stack and layout
+## Структура и зависимости
 
-| Path | Purpose |
+| Путь | Назначение |
 | --- | --- |
-| [src/main.cpp](src/main.cpp) | Burger and order models, callbacks, worker setup, and assertions |
-| [CMakeLists.txt](CMakeLists.txt) | C++20 executable and thread-library configuration |
-| [conanfile.txt](conanfile.txt) | Boost 1.78.0 and the Conan `cmake` generator |
+| [src/main.cpp](src/main.cpp) | Модели бургера и заказа, обратные вызовы, запуск потоков и проверки |
+| [CMakeLists.txt](CMakeLists.txt) | Настройка C++20 и библиотеки потоков |
+| [conanfile.txt](conanfile.txt) | Boost 1.78.0 и генератор `cmake` для Conan |
 
-Requirements:
+Требования:
 
-- A compiler and standard library with C++20 support, including `std::jthread` and `std::osyncstream`.
-- CMake 3.11 or newer.
-- Conan 1.x, using its legacy [`cmake` generator](https://docs.conan.io/en/1.65/reference/generators/cmake.html).
+- Компилятор и стандартная библиотека с поддержкой C++20, включая `std::jthread` и `std::osyncstream`.
+- CMake 3.11 или новее.
+- Conan 1.x с генератором [`cmake`](https://docs.conan.io/en/1.65/reference/generators/cmake.html).
 
-## Build and run
+## Сборка и запуск
 
-The following commands assume Linux/GCC. Build in Debug mode to keep the assertions enabled.
+Команды рассчитаны на Linux/GCC. Используйте режим Debug, чтобы проверки `assert` оставались включёнными.
 
 ```bash
 git clone https://github.com/ST3PAN0V/Multi_Threading_practice.git
@@ -54,16 +54,16 @@ cmake --build .
 ./bin/restaurant
 ```
 
-Conan's `cmake` generator places the executable under `build/bin/`. No command-line arguments are required.
+Генератор `cmake` для Conan размещает исполняемый файл в `build/bin/`. Аргументы командной строки не нужны.
 
-## Reading the output
+## Как читать вывод
 
-Each log line includes an order ID and elapsed time. Follow the messages from starting an order through preparing ingredients, packing, and completion. Their order can vary between runs because several threads execute the handlers.
+Каждая строка лога содержит идентификатор заказа и прошедшее время. По сообщениям можно проследить весь путь: создание заказа, приготовление ингредиентов, упаковку и завершение. Порядок сообщений может меняться между запусками, поскольку обработчики работают в нескольких потоках.
 
-The final assertions check that all 16 orders produced results, no result contains an error, each cutlet was roasted, every burger was packed, and onion matches the request. There is no separate test target in the current CMake configuration.
+Итоговые проверки контролируют, что все 16 заказов дали результат, ошибок нет, каждая котлета приготовлена, каждый бургер упакован, а наличие лука соответствует заказу. Отдельной тестовой цели в текущей конфигурации CMake нет.
 
-## Synchronization scope
+## Область синхронизации
 
-The strand protects insertion into the final `orders` collection. The timer callbacks that update an individual `Order` are not bound to a per-order strand, so that shared state still needs synchronization before applying this pattern to a concurrent service.
+Strand защищает добавление элементов в итоговую коллекцию `orders`. Обратные вызовы таймеров, изменяющие отдельный `Order`, не привязаны к strand конкретного заказа. Перед использованием такого подхода в многопоточном сервисе это общее состояние также нужно синхронизировать.
 
-The packing loop intentionally consumes CPU time to make the difference between waiting and active work visible. This repository is a learning example for inspecting asynchronous control flow and concurrency.
+Цикл упаковки намеренно занимает процессорное время, чтобы было видно различие между ожиданием и активной работой. Репозиторий служит учебным примером для изучения асинхронного выполнения и многопоточности.
